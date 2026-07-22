@@ -74,7 +74,12 @@
                                                     v-if="showOnlyLastHeartbeat"
                                                     :status="statusOfLastHeartbeat(monitor.element.id)"
                                                 />
-                                                <Uptime v-else :monitor="monitor.element" type="24" :pill="true" />
+                                                <Uptime
+                                                    v-else
+                                                    :monitor="monitor.element"
+                                                    :type="uptimeType"
+                                                    :pill="true"
+                                                />
                                                 <a
                                                     v-if="showLink(monitor)"
                                                     :href="monitor.element.url"
@@ -116,7 +121,11 @@
                                             </div>
                                         </div>
                                         <div :key="$root.userHeartbeatBar" class="col-3 col-xl-6">
-                                            <HeartbeatBar size="mid" :monitor-id="monitor.element.id" />
+                                            <HeartbeatBar
+                                                size="mid"
+                                                :monitor-id="monitor.element.id"
+                                                :heartbeat-bar-days="heartbeatBarDays"
+                                            />
                                         </div>
                                     </div>
                                 </div>
@@ -161,6 +170,11 @@ export default {
         showCertificateExpiry: {
             type: Boolean,
         },
+        /** Number of heartbeat history days to display */
+        heartbeatBarDays: {
+            type: Number,
+            default: 0,
+        },
         /** Should only the last heartbeat be shown? */
         showOnlyLastHeartbeat: {
             type: Boolean,
@@ -172,6 +186,10 @@ export default {
     computed: {
         showGroupDrag() {
             return this.$root.publicGroupList.length >= 2;
+        },
+        uptimeType() {
+            const days = Number(this.heartbeatBarDays);
+            return days <= 1 ? "24" : `${days}d`;
         },
     },
     methods: {

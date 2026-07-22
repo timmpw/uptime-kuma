@@ -4,9 +4,10 @@ const { UptimeKumaServer } = require("../uptime-kuma-server");
 const StatusPage = require("../model/status_page");
 const { allowDevAllOrigin, sendHttpError } = require("../util-server");
 const { R } = require("redbean-node");
-const { badgeConstants } = require("../../src/util");
+const { badgeConstants, UP, DOWN, MAINTENANCE, PENDING } = require("../../src/util");
 const { makeBadge } = require("badge-maker");
 const { UptimeCalculator } = require("../uptime-calculator");
+const dayjs = require("dayjs");
 
 let router = express.Router();
 
@@ -71,6 +72,9 @@ router.get("/api/status-page/heartbeat/:slug", cache("1 minutes"), async (reques
         let slug = request.params.slug;
         slug = slug.toLowerCase();
         let statusPageID = await StatusPage.slugToID(slug);
+        let statusPage = await R.findOne("status_page", " id = ? ", [statusPageID]);
+        let heartbeatBarDays = Math.max(0, Math.min(365, statusPage?.heartbeat_bar_days || 0));
+        let maxBeats = Math.max(1, Math.min(parseInt(request.query.maxBeats, 10) || 100, 100));
 
         let monitorIDList = await R.getCol(
             `
@@ -83,21 +87,50 @@ router.get("/api/status-page/heartbeat/:slug", cache("1 minutes"), async (reques
         );
 
         for (let monitorID of monitorIDList) {
-            let list = await R.getAll(
-                `
+            const uptimeCalculator = await UptimeCalculator.getUptimeCalculator(monitorID);
+
+            if (heartbeatBarDays === 0) {
+                let list = await R.getAll(
+                    `
                     SELECT * FROM heartbeat
                     WHERE monitor_id = ?
                     ORDER BY time DESC
                     LIMIT 100
-            `,
-                [monitorID]
-            );
+                `,
+                    [monitorID]
+                );
 
-            list = R.convertToBeans("heartbeat", list);
-            heartbeatList[monitorID] = list.reverse().map((row) => row.toPublicJSON());
+                list = R.convertToBeans("heartbeat", list);
+                heartbeatList[monitorID] = list.reverse().map((row) => row.toPublicJSON());
+            } else {
+                heartbeatList[monitorID] = uptimeCalculator
+                    .getAggregatedBuckets(heartbeatBarDays, maxBeats)
+                    .map((bucket) => {
+                        if (bucket.up === 0 && bucket.down === 0 && bucket.maintenance === 0 && bucket.pending === 0) {
+                            return 0;
+                        }
 
-            const uptimeCalculator = await UptimeCalculator.getUptimeCalculator(monitorID);
-            uptimeList[`${monitorID}_24`] = uptimeCalculator.get24Hour().uptime;
+                        return {
+                            status:
+                                bucket.down > 0
+                                    ? DOWN
+                                    : bucket.maintenance > 0
+                                      ? MAINTENANCE
+                                      : bucket.pending > 0
+                                        ? PENDING
+                                        : UP,
+                            time: dayjs.unix(bucket.end).toISOString(),
+                            msg: "",
+                            ping: null,
+                        };
+                    });
+            }
+
+            const uptimeType = heartbeatBarDays <= 1 ? "24" : `${heartbeatBarDays}d`;
+            uptimeList[`${monitorID}_${uptimeType}`] =
+                heartbeatBarDays <= 1
+                    ? uptimeCalculator.get24Hour().uptime
+                    : uptimeCalculator.getData(heartbeatBarDays, "day").uptime;
         }
 
         response.json({

@@ -56,6 +56,25 @@
                 </div>
 
                 <div class="my-3">
+                    <label for="heartbeat-bar-days" class="form-label">{{ $t("Heartbeat Bar Days") }}</label>
+                    <input
+                        id="heartbeat-bar-days"
+                        v-model.number="config.heartbeatBarDays"
+                        type="number"
+                        class="form-control"
+                        min="0"
+                        max="365"
+                        data-testid="heartbeat-bar-days-input"
+                    />
+                    <div v-if="config.heartbeatBarDays === 0" class="form-text">
+                        {{ $t("Status page will show last beats", [100]) }}
+                    </div>
+                    <div v-else class="form-text">
+                        {{ $t("Status page shows heartbeat history days", [config.heartbeatBarDays]) }}
+                    </div>
+                </div>
+
+                <div class="my-3">
                     <label for="switch-theme" class="form-label">{{ $t("Theme") }}</label>
                     <select id="switch-theme" v-model="config.theme" class="form-select" data-testid="theme-select">
                         <option value="auto">{{ $t("Auto") }}</option>
@@ -493,6 +512,7 @@
                     :edit-mode="enableEditMode"
                     :show-tags="config.showTags"
                     :show-certificate-expiry="config.showCertificateExpiry"
+                    :heartbeat-bar-days="config.heartbeatBarDays || 0"
                     :show-only-last-heartbeat="config.showOnlyLastHeartbeat"
                 />
             </div>
@@ -690,6 +710,7 @@ export default {
             enableEditIncidentMode: false,
             hasToken: false,
             config: {
+                heartbeatBarDays: 0,
                 analyticsType: null,
             },
             selectedMonitor: null,
@@ -989,6 +1010,8 @@ export default {
             .then((res) => {
                 this.config = res.data.config;
 
+                this.config.heartbeatBarDays = parseInt(this.config.heartbeatBarDays, 10) || 0;
+
                 if (!this.config.domainNameList) {
                     this.config.domainNameList = [];
                 }
@@ -1023,6 +1046,7 @@ export default {
                     Math.max(5, this.config.autoRefreshInterval) * 1000
                 );
 
+                this.updateHeartbeatList();
                 this.updateUpdateTimer();
             })
             .catch(function (error) {
@@ -1032,7 +1056,6 @@ export default {
                 console.log(error);
             });
 
-        this.updateHeartbeatList();
         this.loadIncidentHistory();
 
         // Go to edit page if ?edit present
@@ -1070,35 +1093,37 @@ export default {
 
         /**
          * Update the heartbeat list and update favicon if necessary
+         * @param {number|null} maxBeats Maximum number of heartbeat buckets to request
          * @returns {void}
          */
+        loadHeartbeatData(maxBeats = null) {
+            return axios.get("/api/status-page/heartbeat/" + this.slug, { params: { maxBeats } }).then((res) => {
+                const { heartbeatList, uptimeList } = res.data;
+
+                this.$root.heartbeatList = heartbeatList;
+                this.$root.uptimeList = uptimeList;
+
+                const heartbeatIds = Object.keys(heartbeatList);
+                const downMonitors = heartbeatIds.reduce((downMonitorsAmount, currentId) => {
+                    const lastHeartbeat = heartbeatList[currentId].at(-1);
+                    return lastHeartbeat?.status === 0 ? downMonitorsAmount + 1 : downMonitorsAmount;
+                }, 0);
+
+                favicon.badge(downMonitors);
+                this.loadedData = true;
+                this.lastUpdateTime = dayjs();
+                this.updateUpdateTimer();
+            });
+        },
+
+        reloadHeartbeatData(maxBeats) {
+            this.loadHeartbeatData(maxBeats);
+        },
+
         updateHeartbeatList() {
             // If editMode, it will use the data from websocket.
             if (!this.editMode) {
-                axios.get("/api/status-page/heartbeat/" + this.slug).then((res) => {
-                    const { heartbeatList, uptimeList } = res.data;
-
-                    this.$root.heartbeatList = heartbeatList;
-                    this.$root.uptimeList = uptimeList;
-
-                    const heartbeatIds = Object.keys(heartbeatList);
-                    const downMonitors = heartbeatIds.reduce((downMonitorsAmount, currentId) => {
-                        const monitorHeartbeats = heartbeatList[currentId];
-                        const lastHeartbeat = monitorHeartbeats.at(-1);
-
-                        if (lastHeartbeat) {
-                            return lastHeartbeat.status === 0 ? downMonitorsAmount + 1 : downMonitorsAmount;
-                        } else {
-                            return downMonitorsAmount;
-                        }
-                    }, 0);
-
-                    favicon.badge(downMonitors);
-
-                    this.loadedData = true;
-                    this.lastUpdateTime = dayjs();
-                    this.updateUpdateTimer();
-                });
+                this.loadHeartbeatData();
             }
         },
 

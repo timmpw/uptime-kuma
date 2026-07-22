@@ -845,6 +845,56 @@ class UptimeCalculator {
     }
 
     /**
+     * Aggregate uptime data into evenly sized buckets for a status page history range.
+     * @param {number} days Number of days to show
+     * @param {number} targetBuckets Number of buckets to create
+     * @returns {Array<object>} Aggregated bucket data
+     */
+    getAggregatedBuckets(days, targetBuckets = 100) {
+        const now = this.getCurrentDate();
+        const startTime = now.subtract(days, "day");
+        const bucketSizeMinutes = (days * 24 * 60) / targetBuckets;
+        let rawDataPoints;
+
+        if (days <= 1) {
+            rawDataPoints = this.getDataArray(Math.ceil(days * 24 * 60), "minute");
+        } else if (days <= 30) {
+            rawDataPoints = this.getDataArray(Math.ceil(days * 24), "hour");
+        } else {
+            rawDataPoints = this.getDataArray(days, "day");
+        }
+
+        const buckets = Array.from({ length: targetBuckets }, (_, index) => ({
+            start: startTime.add(index * bucketSizeMinutes, "minute").unix(),
+            end: startTime.add((index + 1) * bucketSizeMinutes, "minute").unix(),
+            up: 0,
+            down: 0,
+            maintenance: 0,
+            pending: 0,
+        }));
+
+        const points = rawDataPoints
+            .filter((point) => point && point.timestamp)
+            .sort((a, b) => a.timestamp - b.timestamp);
+        let bucketIndex = 0;
+
+        for (const point of points) {
+            while (bucketIndex < buckets.length && point.timestamp >= buckets[bucketIndex].end) {
+                bucketIndex++;
+            }
+            const bucket = buckets[bucketIndex];
+            if (bucket && point.timestamp >= bucket.start && point.timestamp < bucket.end) {
+                bucket.up += point.up || 0;
+                bucket.down += point.down || 0;
+                bucket.maintenance += point.maintenance || 0;
+                bucket.pending += point.pending || 0;
+            }
+        }
+
+        return buckets;
+    }
+
+    /**
      * Clear all statistics and heartbeats for a monitor
      * @param {number} monitorID the id of the monitor
      * @returns {Promise<void>}

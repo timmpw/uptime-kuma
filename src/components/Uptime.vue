@@ -90,6 +90,10 @@ export default {
             if (this.type === "720") {
                 return this.$t("days", 30);
             }
+            const dayMatch = this.type.match(/^(\d+)d$/);
+            if (dayMatch) {
+                return this.$t("days", parseInt(dayMatch[1]));
+            }
             return this.$t("hours", 24);
         },
     },
