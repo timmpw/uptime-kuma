@@ -20,6 +20,7 @@ COPY --chown=node:node package.json package.json
 COPY --chown=node:node package-lock.json package-lock.json
 RUN npm ci --omit=dev
 COPY . .
+RUN test -s ./dist/index.html
 COPY --chown=node:node --from=build_healthcheck /app/extra/healthcheck /app/extra/healthcheck
 RUN mkdir ./data
 
@@ -115,4 +116,3 @@ RUN chmod +x /app/extra/upload-github-release-asset.sh
 # Dist only
 RUN cd /app && tar -zcvf $DIST dist
 RUN /app/extra/upload-github-release-asset.sh github_api_token=$GITHUB_TOKEN owner=louislam repo=uptime-kuma tag=$VERSION filename=/app/$DIST
-
