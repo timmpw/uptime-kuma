@@ -250,6 +250,15 @@ describe("Uptime Calculator", () => {
         assert.strictEqual(uptime, 0.5);
         assert.strictEqual(c2.get24Hour().avgPing, 123);
 
+        // Maintenance is excluded from both uptime and downtime totals.
+        c2 = new UptimeCalculator();
+        await c2.update(UP);
+        await c2.update(MAINTENANCE);
+        await c2.update(DOWN);
+        data = c2.get24Hour();
+        assert.strictEqual(data.uptime, 0.5);
+        assert.strictEqual(data.down, 1);
+
         // Add 24 hours
         c2 = new UptimeCalculator();
         await c2.update(UP, 0);

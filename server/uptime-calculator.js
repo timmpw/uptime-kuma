@@ -683,6 +683,7 @@ class UptimeCalculator {
         } else {
             uptimeData.uptime = total.up / (total.up + total.down);
         }
+        uptimeData.down = total.down;
         uptimeData.avgPing = avgPing;
         return uptimeData;
     }
@@ -928,6 +929,12 @@ class UptimeDataResult {
      * @type {number} Uptime
      */
     uptime = 0;
+
+    /**
+     * Number of checks that reported the monitor as down. Maintenance checks are excluded.
+     * @type {number}
+     */
+    down = 0;
 
     /**
      * @type {number} Average ping

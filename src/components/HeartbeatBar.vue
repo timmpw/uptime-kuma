@@ -68,6 +68,11 @@ export default {
             type: Number,
             default: 0,
         },
+        /** Show planned maintenance as normal availability */
+        hideMaintenance: {
+            type: Boolean,
+            default: false,
+        },
     },
     data() {
         return {
@@ -444,7 +449,9 @@ export default {
                 case PENDING:
                     return `Pending at ${this.$root.datetime(beat.time)}`;
                 case MAINTENANCE:
-                    return `Maintenance at ${this.$root.datetime(beat.time)}`;
+                    return this.hideMaintenance
+                        ? `Up at ${this.$root.datetime(beat.time)}`
+                        : `Maintenance at ${this.$root.datetime(beat.time)}`;
                 default:
                     return "No data";
             }
@@ -649,7 +656,7 @@ export default {
             } else if (status === PENDING) {
                 return colors.pending;
             } else if (status === MAINTENANCE) {
-                return colors.maintenance;
+                return this.hideMaintenance ? colors.up : colors.maintenance;
             } else {
                 return colors.up;
             }

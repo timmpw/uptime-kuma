@@ -48,6 +48,7 @@ export default {
             heartbeatList: {},
             avgPingList: {},
             uptimeList: {},
+            downtimeList: {},
             tlsInfoList: {},
             domainInfoList: {},
             notificationList: [],

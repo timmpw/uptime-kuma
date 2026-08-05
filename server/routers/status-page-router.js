@@ -68,6 +68,7 @@ router.get("/api/status-page/heartbeat/:slug", cache("1 minutes"), async (reques
     try {
         let heartbeatList = {};
         let uptimeList = {};
+        let downtimeList = {};
 
         let slug = request.params.slug;
         slug = slug.toLowerCase();
@@ -76,17 +77,20 @@ router.get("/api/status-page/heartbeat/:slug", cache("1 minutes"), async (reques
         let heartbeatBarDays = Math.max(0, Math.min(365, statusPage?.heartbeat_bar_days || 0));
         let maxBeats = Math.max(1, Math.min(parseInt(request.query.maxBeats, 10) || 100, 100));
 
-        let monitorIDList = await R.getCol(
+        let monitorList = await R.getAll(
             `
-            SELECT monitor_group.monitor_id FROM monitor_group, \`group\`
-            WHERE monitor_group.group_id = \`group\`.id
-            AND public = 1
+            SELECT DISTINCT monitor_group.monitor_id, monitor.interval
+            FROM monitor_group
+            JOIN \`group\` ON monitor_group.group_id = \`group\`.id
+            JOIN monitor ON monitor.id = monitor_group.monitor_id
+            WHERE \`group\`.public = 1
             AND \`group\`.status_page_id = ?
         `,
             [statusPageID]
         );
 
-        for (let monitorID of monitorIDList) {
+        for (let monitor of monitorList) {
+            const monitorID = monitor.monitor_id;
             const uptimeCalculator = await UptimeCalculator.getUptimeCalculator(monitorID);
 
             if (heartbeatBarDays === 0) {
@@ -101,7 +105,11 @@ router.get("/api/status-page/heartbeat/:slug", cache("1 minutes"), async (reques
                 );
 
                 list = R.convertToBeans("heartbeat", list);
-                heartbeatList[monitorID] = list.reverse().map((row) => row.toPublicJSON());
+                heartbeatList[monitorID] = list.reverse().map((row) => ({
+                    ...row.toPublicJSON(),
+                    // Planned maintenance is not an incident on a public status page.
+                    status: row.status === MAINTENANCE ? UP : row.status,
+                }));
             } else {
                 heartbeatList[monitorID] = uptimeCalculator
                     .getAggregatedBuckets(heartbeatBarDays, maxBeats)
@@ -114,11 +122,9 @@ router.get("/api/status-page/heartbeat/:slug", cache("1 minutes"), async (reques
                             status:
                                 bucket.down > 0
                                     ? DOWN
-                                    : bucket.maintenance > 0
-                                      ? MAINTENANCE
-                                      : bucket.pending > 0
-                                        ? PENDING
-                                        : UP,
+                                    : bucket.pending > 0
+                                      ? PENDING
+                                      : UP,
                             time: dayjs.unix(bucket.end).toISOString(),
                             msg: "",
                             ping: null,
@@ -127,15 +133,18 @@ router.get("/api/status-page/heartbeat/:slug", cache("1 minutes"), async (reques
             }
 
             const uptimeType = heartbeatBarDays <= 1 ? "24" : `${heartbeatBarDays}d`;
-            uptimeList[`${monitorID}_${uptimeType}`] =
+            const uptimeData =
                 heartbeatBarDays <= 1
-                    ? uptimeCalculator.get24Hour().uptime
-                    : uptimeCalculator.getData(heartbeatBarDays, "day").uptime;
+                    ? uptimeCalculator.get24Hour()
+                    : uptimeCalculator.getData(heartbeatBarDays, "day");
+            uptimeList[`${monitorID}_${uptimeType}`] = uptimeData.uptime;
+            downtimeList[`${monitorID}_${uptimeType}`] = uptimeData.down * monitor.interval * 1000;
         }
 
         response.json({
             heartbeatList,
             uptimeList,
+            downtimeList,
         });
     } catch (error) {
         sendHttpError(response, error.message);

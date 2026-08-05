@@ -418,31 +418,11 @@
                         {{ $t("Degraded Service") }}
                     </div>
 
-                    <div v-else-if="isMaintenance">
-                        <font-awesome-icon icon="wrench" class="status-maintenance" />
-                        {{ $t("maintenanceStatus-under-maintenance") }}
-                    </div>
-
                     <div v-else>
                         <font-awesome-icon icon="question-circle" style="color: #efefef" />
                     </div>
                 </template>
             </div>
-
-            <!-- Maintenance -->
-            <template v-if="maintenanceList.length > 0">
-                <div
-                    v-for="maintenance in maintenanceList"
-                    :key="maintenance.id"
-                    class="shadow-box alert mb-4 p-3 bg-maintenance mt-4 position-relative"
-                    role="alert"
-                >
-                    <h4 class="alert-heading">{{ maintenance.title }}</h4>
-                    <!-- eslint-disable-next-line vue/no-v-html-->
-                    <div class="content" v-html="maintenanceHTML(maintenance.description)"></div>
-                    <MaintenanceTime :maintenance="maintenance" />
-                </div>
-            </template>
 
             <!-- Description -->
             <strong v-if="editMode">{{ $t("Description") }}:</strong>
@@ -639,7 +619,6 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import Confirm from "../components/Confirm.vue";
 import PublicGroupList from "../components/PublicGroupList.vue";
-import MaintenanceTime from "../components/MaintenanceTime.vue";
 import IncidentHistory from "../components/IncidentHistory.vue";
 import IncidentManageModal from "../components/IncidentManageModal.vue";
 import IncidentEditForm from "../components/IncidentEditForm.vue";
@@ -647,7 +626,6 @@ import { getResBaseURL } from "../util-frontend";
 import {
     STATUS_PAGE_ALL_DOWN,
     STATUS_PAGE_ALL_UP,
-    STATUS_PAGE_MAINTENANCE,
     STATUS_PAGE_PARTIAL_DOWN,
     UP,
     MAINTENANCE,
@@ -673,7 +651,6 @@ export default {
         ImageCropUpload,
         Confirm,
         PrismEditor,
-        MaintenanceTime,
         Tag,
         VueMultiselect,
         IncidentHistory,
@@ -722,7 +699,6 @@ export default {
             loadedData: false,
             baseURL: "",
             clickedEditButton: false,
-            maintenanceList: [],
             lastUpdateTime: dayjs(),
             updateCountdown: null,
             updateCountdownText: null,
@@ -808,10 +784,6 @@ export default {
             return "bg-" + this.incident.style;
         },
 
-        maintenanceClass() {
-            return "bg-maintenance";
-        },
-
         overallStatus() {
             if (Object.keys(this.$root.publicLastHeartbeatList).length === 0) {
                 return -1;
@@ -823,9 +795,7 @@ export default {
             for (let id in this.$root.publicLastHeartbeatList) {
                 let beat = this.$root.publicLastHeartbeatList[id];
 
-                if (beat.status === MAINTENANCE) {
-                    return STATUS_PAGE_MAINTENANCE;
-                } else if (beat.status === UP) {
+                if (beat.status === UP || beat.status === MAINTENANCE) {
                     hasUp = true;
                 } else {
                     status = STATUS_PAGE_PARTIAL_DOWN;
@@ -849,10 +819,6 @@ export default {
 
         allDown() {
             return this.overallStatus === STATUS_PAGE_ALL_DOWN;
-        },
-
-        isMaintenance() {
-            return this.overallStatus === STATUS_PAGE_MAINTENANCE;
         },
 
         incidentHTML() {
@@ -1020,7 +986,6 @@ export default {
                     this.imgDataUrl = this.config.icon;
                 }
 
-                this.maintenanceList = res.data.maintenanceList;
                 this.$root.publicGroupList = res.data.publicGroupList;
 
                 this.loading = false;
@@ -1033,7 +998,6 @@ export default {
                 );
 
                 this.incident = res.data.incident;
-                this.maintenanceList = res.data.maintenanceList;
                 this.$root.publicGroupList = res.data.publicGroupList;
 
                 this.loading = false;
@@ -1098,10 +1062,11 @@ export default {
          */
         loadHeartbeatData(maxBeats = null) {
             return axios.get("/api/status-page/heartbeat/" + this.slug, { params: { maxBeats } }).then((res) => {
-                const { heartbeatList, uptimeList } = res.data;
+                const { heartbeatList, uptimeList, downtimeList } = res.data;
 
                 this.$root.heartbeatList = heartbeatList;
                 this.$root.uptimeList = uptimeList;
+                this.$root.downtimeList = downtimeList;
 
                 const heartbeatIds = Object.keys(heartbeatList);
                 const downMonitors = heartbeatIds.reduce((downMonitorsAmount, currentId) => {
@@ -1401,19 +1366,6 @@ export default {
          */
         removeDomain(index) {
             this.config.domainNameList.splice(index, 1);
-        },
-
-        /**
-         * Generate sanitized HTML from maintenance description
-         * @param {string} description Text to sanitize
-         * @returns {string} Sanitized HTML
-         */
-        maintenanceHTML(description) {
-            if (description) {
-                return DOMPurify.sanitize(marked(description));
-            } else {
-                return "";
-            }
         },
 
         /**

@@ -79,6 +79,7 @@
                                                     :monitor="monitor.element"
                                                     :type="uptimeType"
                                                     :pill="true"
+                                                    :show-downtime="true"
                                                 />
                                                 <a
                                                     v-if="showLink(monitor)"
@@ -125,6 +126,7 @@
                                                 size="mid"
                                                 :monitor-id="monitor.element.id"
                                                 :heartbeat-bar-days="heartbeatBarDays"
+                                                :hide-maintenance="true"
                                             />
                                         </div>
                                     </div>
@@ -146,6 +148,7 @@ import HeartbeatBar from "./HeartbeatBar.vue";
 import Uptime from "./Uptime.vue";
 import Tag from "./Tag.vue";
 import Status from "./Status.vue";
+import { MAINTENANCE, UP } from "../util.ts";
 
 export default {
     components: {
@@ -310,7 +313,7 @@ export default {
         statusOfLastHeartbeat(monitorId) {
             let heartbeats = this.$root.heartbeatList[monitorId] ?? [];
             let lastHeartbeat = heartbeats[heartbeats.length - 1];
-            return lastHeartbeat?.status;
+            return lastHeartbeat?.status === MAINTENANCE ? UP : lastHeartbeat?.status;
         },
 
         /**

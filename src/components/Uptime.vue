@@ -1,5 +1,6 @@
 <template>
     <span :class="className" :title="title">{{ uptime }}</span>
+    <span v-if="showDowntime" class="downtime" :title="title">{{ downtime }}</span>
 </template>
 
 <script>
@@ -19,6 +20,11 @@ export default {
         },
         /** Is this a pill? */
         pill: {
+            type: Boolean,
+            default: false,
+        },
+        /** Show total downtime for the selected period */
+        showDowntime: {
             type: Boolean,
             default: false,
         },
@@ -45,9 +51,24 @@ export default {
             return this.$t("notAvailableShort");
         },
 
+        downtime() {
+            const key = this.monitor.id + "_" + this.type;
+            const milliseconds = this.$root.downtimeList[key];
+
+            if (milliseconds === undefined) {
+                return this.$t("notAvailableShort");
+            }
+
+            const totalMinutes = Math.round(milliseconds / 60000);
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+
+            return `${String(hours).padStart(2, "0")}ч:${String(minutes).padStart(2, "0")}м`;
+        },
+
         color() {
             if (this.lastHeartBeat.status === MAINTENANCE) {
-                return "maintenance";
+                return this.$route.path.startsWith("/status") ? "primary" : "maintenance";
             }
 
             if (this.lastHeartBeat.status === DOWN) {
@@ -64,7 +85,6 @@ export default {
 
             return "secondary";
         },
-
         lastHeartBeat() {
             if (this.monitor.id in this.$root.lastHeartbeatList && this.$root.lastHeartbeatList[this.monitor.id]) {
                 return this.$root.lastHeartbeatList[this.monitor.id];
@@ -96,6 +116,7 @@ export default {
             }
             return this.$t("hours", 24);
         },
+
     },
 };
 </script>
@@ -103,5 +124,10 @@ export default {
 <style>
 .badge {
     min-width: 62px;
+}
+
+.downtime {
+    margin-left: 0.5rem;
+    white-space: nowrap;
 }
 </style>
