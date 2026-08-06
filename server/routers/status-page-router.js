@@ -7,12 +7,41 @@ const { R } = require("redbean-node");
 const { badgeConstants, UP, DOWN, MAINTENANCE, PENDING } = require("../../src/util");
 const { makeBadge } = require("badge-maker");
 const { UptimeCalculator } = require("../uptime-calculator");
+const { buildPublicStatusHistory } = require("../status-page-history");
 const dayjs = require("dayjs");
+const utc = require("dayjs/plugin/utc");
+
+dayjs.extend(utc);
 
 let router = express.Router();
 
 let cache = apicache.middleware;
 const server = UptimeKumaServer.getInstance();
+
+/**
+ * Load the status transitions needed to render a public status history.
+ * Important heartbeats retain each DOWN/UP/maintenance transition after old samples are cleaned up.
+ * @param {number} monitorID Monitor ID
+ * @param {number} days Number of days to include
+ * @param {number} targetBuckets Number of history buckets
+ * @returns {Promise<{buckets: Array<{status: number|null, end: number}>, downtime: number}>}
+ */
+async function getPublicStatusHistory(monitorID, days, targetBuckets) {
+    const endTime = dayjs.utc();
+    const startTime = endTime.subtract(days, "day");
+    const startDate = R.isoDateTimeMillis(startTime);
+    const endDate = R.isoDateTimeMillis(endTime);
+    const initialHeartbeat = await R.getRow(
+        "SELECT status, time FROM heartbeat WHERE monitor_id = ? AND time <= ? ORDER BY time DESC LIMIT 1",
+        [monitorID, startDate]
+    );
+    const transitions = await R.getAll(
+        "SELECT status, time FROM heartbeat WHERE monitor_id = ? AND important = 1 AND time > ? AND time <= ? ORDER BY time",
+        [monitorID, startDate, endDate]
+    );
+
+    return buildPublicStatusHistory(initialHeartbeat, transitions, startTime, endTime, targetBuckets);
+}
 
 router.get("/status/:slug", cache("5 minutes"), async (request, response) => {
     let slug = request.params.slug;
@@ -92,6 +121,7 @@ router.get("/api/status-page/heartbeat/:slug", cache("1 minutes"), async (reques
         for (let monitor of monitorList) {
             const monitorID = monitor.monitor_id;
             const uptimeCalculator = await UptimeCalculator.getUptimeCalculator(monitorID);
+            const statusHistory = await getPublicStatusHistory(monitorID, Math.max(heartbeatBarDays, 1), maxBeats);
 
             if (heartbeatBarDays === 0) {
                 let list = await R.getAll(
@@ -111,24 +141,13 @@ router.get("/api/status-page/heartbeat/:slug", cache("1 minutes"), async (reques
                     status: row.status === MAINTENANCE ? UP : row.status,
                 }));
             } else {
-                heartbeatList[monitorID] = uptimeCalculator
-                    .getAggregatedBuckets(heartbeatBarDays, maxBeats)
-                    .map((bucket) => {
-                        if (bucket.up === 0 && bucket.down === 0 && bucket.maintenance === 0 && bucket.pending === 0) {
+                heartbeatList[monitorID] = statusHistory.buckets.map((bucket) => {
+                        if (bucket.status === null) {
                             return 0;
                         }
 
                         return {
-                            status:
-                                // Planned maintenance is excluded from public downtime,
-                                // even when it shares an aggregated bucket with failed checks.
-                                bucket.maintenance > 0
-                                    ? UP
-                                    : bucket.down > 0
-                                      ? DOWN
-                                      : bucket.pending > 0
-                                        ? PENDING
-                                        : UP,
+                            status: bucket.status,
                             time: dayjs.unix(bucket.end).toISOString(),
                             msg: "",
                             ping: null,
@@ -142,7 +161,7 @@ router.get("/api/status-page/heartbeat/:slug", cache("1 minutes"), async (reques
                     ? uptimeCalculator.get24Hour()
                     : uptimeCalculator.getData(heartbeatBarDays, "day");
             uptimeList[`${monitorID}_${uptimeType}`] = uptimeData.uptime;
-            downtimeList[`${monitorID}_${uptimeType}`] = uptimeData.down * monitor.interval * 1000;
+            downtimeList[`${monitorID}_${uptimeType}`] = statusHistory.downtime;
         }
 
         response.json({
