@@ -9,13 +9,14 @@ const { DOWN, UP } = require("../src/util");
  * @param {dayjs.Dayjs} startTime Start of the range
  * @param {dayjs.Dayjs} endTime End of the range
  * @param {number} targetBuckets Number of buckets to return
- * @returns {{buckets: Array<{status: number|null, end: number}>, downtime: number}}
+ * @returns {{buckets: Array<{status: number|null, start: number, end: number}>, downtime: number}}
  */
 function buildPublicStatusHistory(initialHeartbeat, transitions, startTime, endTime, targetBuckets) {
     const start = startTime.valueOf();
     const end = endTime.valueOf();
     const bucketDuration = (end - start) / targetBuckets;
     const buckets = Array.from({ length: targetBuckets }, (_, index) => ({
+        start: Math.floor((start + index * bucketDuration) / 1000),
         end: Math.floor((start + (index + 1) * bucketDuration) / 1000),
         down: false,
         hasData: false,
@@ -68,6 +69,7 @@ function buildPublicStatusHistory(initialHeartbeat, transitions, startTime, endT
     return {
         buckets: buckets.map((bucket) => ({
             status: bucket.down ? DOWN : bucket.hasData ? UP : null,
+            start: bucket.start,
             end: bucket.end,
         })),
         downtime,

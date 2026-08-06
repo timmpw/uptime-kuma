@@ -28,5 +28,7 @@ describe("Public status page history", () => {
             history.buckets.map((bucket) => bucket.status),
             [UP, UP, UP, DOWN]
         );
+        assert.strictEqual(history.buckets[0].start, start.unix());
+        assert.strictEqual(history.buckets.at(-1).end, end.unix());
     });
 });

@@ -149,6 +149,7 @@ router.get("/api/status-page/heartbeat/:slug", cache("1 minutes"), async (reques
                         return {
                             status: bucket.status,
                             time: dayjs.unix(bucket.end).toISOString(),
+                            periodStart: dayjs.unix(bucket.start).toISOString(),
                             msg: "",
                             ping: null,
                         };

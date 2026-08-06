@@ -412,7 +412,10 @@ export default {
                 return "";
             }
 
-            // Show timestamp for all beats (both individual and aggregated)
+            if (beat.periodStart) {
+                return `${this.$root.datetime(beat.periodStart)} - ${this.$root.datetime(beat.time)}`;
+            }
+
             return `${this.$root.datetime(beat.time)}${beat.msg ? ` - ${beat.msg}` : ""}`;
         },
 
@@ -441,17 +444,25 @@ export default {
          * @returns {string} Aria label
          */
         getBeatAriaLabel(beat) {
+            if (!beat || beat === 0) {
+                return "No data";
+            }
+
+            const time = beat.periodStart
+                ? `${this.$root.datetime(beat.periodStart)} to ${this.$root.datetime(beat.time)}`
+                : this.$root.datetime(beat.time);
+
             switch (beat?.status) {
                 case DOWN:
-                    return `Down at ${this.$root.datetime(beat.time)}`;
+                    return `Down during ${time}`;
                 case UP:
-                    return `Up at ${this.$root.datetime(beat.time)}`;
+                    return `Up during ${time}`;
                 case PENDING:
-                    return `Pending at ${this.$root.datetime(beat.time)}`;
+                    return `Pending during ${time}`;
                 case MAINTENANCE:
                     return this.hideMaintenance
-                        ? `Up at ${this.$root.datetime(beat.time)}`
-                        : `Maintenance at ${this.$root.datetime(beat.time)}`;
+                        ? `Up during ${time}`
+                        : `Maintenance during ${time}`;
                 default:
                     return "No data";
             }

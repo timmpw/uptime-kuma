@@ -105,6 +105,11 @@ export default {
             if (!this.content || this.content === 0) {
                 return "";
             }
+
+            if (this.content.periodStart) {
+                return `${this.$root.datetime(this.content.periodStart)} - ${this.$root.datetime(this.content.time)}`;
+            }
+
             return this.$root.datetime(this.content.time);
         },
     },
