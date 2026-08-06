@@ -120,11 +120,15 @@ router.get("/api/status-page/heartbeat/:slug", cache("1 minutes"), async (reques
 
                         return {
                             status:
-                                bucket.down > 0
-                                    ? DOWN
-                                    : bucket.pending > 0
-                                      ? PENDING
-                                      : UP,
+                                // Planned maintenance is excluded from public downtime,
+                                // even when it shares an aggregated bucket with failed checks.
+                                bucket.maintenance > 0
+                                    ? UP
+                                    : bucket.down > 0
+                                      ? DOWN
+                                      : bucket.pending > 0
+                                        ? PENDING
+                                        : UP,
                             time: dayjs.unix(bucket.end).toISOString(),
                             msg: "",
                             ping: null,

@@ -1,6 +1,5 @@
 <template>
-    <span :class="className" :title="title">{{ uptime }}</span>
-    <span v-if="showDowntime" class="downtime" :title="title">{{ downtime }}</span>
+    <span :class="className" :title="title">{{ showDowntime ? downtime : uptime }}</span>
 </template>
 
 <script>
@@ -63,9 +62,8 @@ export default {
             const hours = Math.floor(totalMinutes / 60);
             const minutes = totalMinutes % 60;
 
-            return `${String(hours).padStart(2, "0")}ч:${String(minutes).padStart(2, "0")}м`;
+            return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
         },
-
         color() {
             if (this.lastHeartBeat.status === MAINTENANCE) {
                 return this.$route.path.startsWith("/status") ? "primary" : "maintenance";
@@ -126,8 +124,4 @@ export default {
     min-width: 62px;
 }
 
-.downtime {
-    margin-left: 0.5rem;
-    white-space: nowrap;
-}
 </style>
