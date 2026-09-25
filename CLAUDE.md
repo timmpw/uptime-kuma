@@ -15,17 +15,6 @@ Our definition of AI slop:
 - You don't understand the generated code (logic, or the programming language), even though it is working.
 - You use AI to reply to our code review comments.
 
-You may use AI tools to understand the codebase and as an assistant, but you must personally understand all changes, review the generated code, and manually test it before submitting a pull request.
-
-You will be BANNED immediately if you submit generated code and an LLM-written description without reviewing and testing it.
-
-# For Code Agent
-
-## Allowed Tasks
-
-- fix small issues (about 1 - 10 lines of code)
-- correct grammar
-- help users understand the codebase
 
 ## In case the current task is not classified as allowed tasks
 
